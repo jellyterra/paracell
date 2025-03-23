@@ -1,0 +1,71 @@
+use std::str::FromStr;
+use crate::sexpr::ast::*;
+
+grammar;
+
+L = "(";
+R = ")";
+List<LEAD, T>: Vec<T> = L LEAD <items: T*> R => items;
+
+pub Nat: Nat = {
+	// 0
+	"0" => Nat{val: 0},
+	// 10
+	<lit: r"[1-9]+[0-9]*"> => Nat{val: u128::from_str(lit).unwrap()},
+	// 0xff
+	<lit: r"0x[0-9A-F]*"> => Nat{val: u128::from_str_radix(&lit[2..lit.len()], 16).unwrap()},
+	// 07
+	<lit: r"0o[0-7]*"> => Nat{val: u128::from_str_radix(&lit[2..lit.len()], 8).unwrap()},
+	// 0b1001
+	<lit: r"0b[0-1]*"> => Nat{val: u128::from_str_radix(&lit[2..lit.len()], 2).unwrap()},
+}
+
+// regfile_a0
+pub Ident: Ident = <ident: r"[a-zA-Z_]+[a-zA-Z0-9_]*"> => Ident{lit: ident.to_string()};
+
+UnaryOperator: UnaryOperator = {
+	"~" => UnaryOperator::Invert,
+}
+
+BinaryOperator: BinaryOperator = {
+	"+" => BinaryOperator::Add,
+	"-" => BinaryOperator::Sub,
+	"*" => BinaryOperator::Mul,
+	"/" => BinaryOperator::Div,
+	"%" => BinaryOperator::Mod,
+
+	"and" => BinaryOperator::And,
+	"or" => BinaryOperator::Or,
+}
+
+ListLead: ListLead = {
+	"union" => ListLead::Union,
+	"record" => ListLead::Record,
+	"func" => ListLead::Func,
+	"match" => ListLead::Match,
+	
+	"apply" => ListLead::Apply,
+	"return" => ListLead::Return,
+}
+
+Field: Field = L "field" <ident: Ident> <ty: Item> R => Field{ident, ty};
+Variant: Variant = L "variant" <ident: Ident> <ty: Item> R => Variant{ident, ty};
+
+LetDecl: LetDecl = L "let" <ident: Ident> <expr: Item> R => LetDecl{ident, expr};
+VarDecl: VarDecl = L "var" <ident: Ident> <expr: Item> R => VarDecl{ident, expr};
+
+pub Item: Item = {
+	<v: Nat> => Item::Nat(v),
+	<v: Ident> => Item::Ident(v),
+
+	<v: Field> => Item::Field(Box::from(v)),
+	<v: Variant> => Item::Variant(Box::from(v)),
+	
+	<v: LetDecl> => Item::LetDecl(Box::from(v)),
+	<v: VarDecl> => Item::VarDecl(Box::from(v)),
+	
+	L <lead: ListLead> <items: Item*> R => Item::List(List{lead, items}),
+	
+	L <op: UnaryOperator> <expr: Item> R => Item::UnaryOpExpr(Box::from(UnaryOpExpr{op, expr})),
+	L <op: BinaryOperator> <left: Item> <right: Item> R => Item::BinaryOpExpr(Box::from(BinaryOpExpr{op, left, right})),
+}

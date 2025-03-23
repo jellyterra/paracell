@@ -1,0 +1,5 @@
+[workspace]
+
+resolver = "2"
+
+members = ["codegen_circt", "codegen_llvm", "codegen_verilog", "parser_lalrpop", "parser_sem", "represent", "util_macro", "util_struct"]

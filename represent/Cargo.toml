@@ -1,0 +1,8 @@
+[package]
+name = "paracell_represent"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+typed-arena = "2.0.2"
+paracell_util_struct = { path = "../util_struct" }

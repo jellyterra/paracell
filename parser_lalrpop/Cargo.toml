@@ -1,0 +1,13 @@
+[package]
+name = "paracell_parser_lalrpop"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lalrpop-util = { version = "0.22.1", features = ["lexer"] }
+thiserror = "2.0.12"
+paracell_parser_sem = { path = "../parser_sem" }
+paracell_util_macro = { path = "../util_macro" }
+
+[build-dependencies]
+lalrpop = "0.22.1"

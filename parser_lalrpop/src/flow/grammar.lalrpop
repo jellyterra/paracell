@@ -1,0 +1,121 @@
+use std::str::FromStr;
+use crate::flow::ast::*;
+
+grammar;
+
+ListSucc<T, SPLIT>: T = SPLIT <e: T> => e;
+
+List<T, SPLIT>: Vec<T> = <lead: T?> <succ: ListSucc<T, SPLIT>*> => {
+	match lead {
+		None => Vec::new(),
+		Some(lead) => {
+			let mut elems = Vec::new();
+			elems.push(lead);
+			elems.extend(succ);
+			elems
+		}
+	}
+};
+
+pub Nat: Nat = {
+	// 0
+	"0" => Nat{val: 0},
+	// 10
+	<lit: r"[1-9]+[0-9]*"> => Nat{val: u128::from_str(lit).unwrap()},
+	// 0xff
+	<lit: r"0x[0-9A-F]*"> => Nat{val: u128::from_str_radix(&lit[2..lit.len()], 16).unwrap()},
+	// 07
+	<lit: r"0o[0-7]*"> => Nat{val: u128::from_str_radix(&lit[2..lit.len()], 8).unwrap()},
+	// 0b1001
+	<lit: r"0b[0-1]*"> => Nat{val: u128::from_str_radix(&lit[2..lit.len()], 2).unwrap()},
+}
+
+// regfile_a0
+pub Ident: Ident = <ident: r"[a-zA-Z_]+[a-zA-Z0-9_]*"> => Ident{lit: ident.to_string()};
+
+Tuple: Tuple = "(" <elems: List<Item, ",">> ")" => Tuple{elems};
+
+TypeTuple: TypeTuple = "[" <elems: List<Item, ",">> "]" => TypeTuple{elems};
+
+UnaryOperator: UnaryOperator = {
+	"~" => UnaryOperator::Invert,
+	"!" => UnaryOperator::Not,
+}
+
+BinaryOperator: BinaryOperator = {
+	"+" => BinaryOperator::Add,
+	"-" => BinaryOperator::Sub,
+	"*" => BinaryOperator::Mul,
+	"/" => BinaryOperator::Div,
+	"%" => BinaryOperator::Mod,
+
+	"and" => BinaryOperator::And,
+	"or" => BinaryOperator::Or,
+}
+
+IdentItem: IdentItem = <ident: Ident> ":" <item: Item> => IdentItem{ident, item};
+
+RecordType: RecordType = "record" "{" <fields: List<IdentItem, ",">> "}" => RecordType{fields};
+
+UnionType: UnionType = "union" "{" <variants: List<IdentItem, ",">> "}" => UnionType{variants};
+
+FuncType: FuncType = <param_tuple: Tuple> "->" <result_ty: Item> => FuncType{param_tuple, result_ty};
+
+Func: Func = "fun" <ty: FuncType> <block: Block> => Func{ty, block};
+
+Block: Block = "{" <elems: List<Item, ";">> "}" => Block{elems};
+
+Case: Case = <pattern: Item> "=>" <expr: Item> => Case{pattern, expr};
+
+Match: Match = "match" <expr: Item> "{" <cases: List<Case, ",">> "}" => Match{expr, cases};
+
+pub Item: Item = {
+	#[precedence(level = "0")]
+	<v: Nat> => Item::Nat(v),
+	#[precedence(level = "0")]
+	<v: Ident> => Item::Ident(v),
+	#[precedence(level = "0")]
+	<v: Tuple> => Item::Tuple(v),
+	#[precedence(level = "0")]
+	<v: Block> => Item::Block(Box::from(v)),
+	#[precedence(level = "0")]
+	<v: Func> => Item::Func(Box::from(v)),
+	#[precedence(level = "0")]
+	<v: Match> => Item::Match(Box::from(v)),
+	#[precedence(level = "0")]
+	<v: TypeTuple> => Item::TypeTuple(Box::from(v)),
+
+	#[precedence(level = "0")]
+	<v: RecordType> => Item::RecordType(Box::from(v)),
+	#[precedence(level = "0")]
+	<v: UnionType> => Item::UnionType(Box::from(v)),
+
+	#[precedence(level = "1")]
+	<op: UnaryOperator> <expr: Item> => Item::UnaryOpExpr(Box::from(UnaryOpExpr{op, expr})),
+
+	#[precedence(level = "2")]
+	#[assoc(side = "left")]
+	<expr: Item> "." <ident: Ident> => Item::Select(Box::from(Select {expr, ident})),
+	#[precedence(level = "2")]
+	#[assoc(side = "left")]
+	<from: Item> "|>" <to: Item> => Item::Pipe(Box::from(Pipe {from, to})),
+
+	#[precedence(level = "3")]
+	#[assoc(side = "left")]
+	<left: Item> <op: BinaryOperator> <right: Item> => Item::BinaryOpExpr(Box::from(BinaryOpExpr{op, left, right})),
+	#[precedence(level = "3")]
+	#[assoc(side = "left")]
+	<func: Item> <params: Tuple> => Item::ApplyExpr(Box::from(ApplyExpr{func, params})),
+
+	#[precedence(level = "4")]
+	<v: IdentItem> => Item::IdentItem(Box::from(v)),
+
+	#[precedence(level = "5")]
+	"let" <ident: Ident> "=" <expr: Item>  => Item::LetDecl(Box::from(LetDecl{ident, expr})),
+	#[precedence(level = "5")]
+	"var" <ident: Ident> "=" <expr: Item> => Item::VarDecl(Box::from(VarDecl{ident, expr})),
+	#[precedence(level = "5")]
+	"type" <ident: Ident> "=" <ty: Item> => Item::TypeAliasDecl(Box::from(TypeAliasDecl{ident, ty})),
+}
+
+pub SourceFile: SourceFile = <items: List<Item, ";">> => SourceFile{ items };

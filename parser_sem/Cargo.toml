@@ -1,0 +1,7 @@
+[package]
+name = "paracell_parser_sem"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+paracell_util_macro = { path = "../util_macro" }
